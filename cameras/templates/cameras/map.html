@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Dallas Flock Cameras Map</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <style>
+        #map { height: 90vh; width: 100%; }
+    </style>
+</head>
+<body>
+    <h1>Dallas Flock Cameras Map</h1>
+    <div style="margin-bottom:1em;">
+        {% if user.is_authenticated %}
+            Welcome, {{ user.username }}! <a href="{% url 'logout' %}">Logout</a>
+        {% else %}
+            <a href="{% url 'login' %}">Login</a> | <a href="{% url 'register' %}">Register</a>
+        {% endif %}
+    </div>
+    <div id="map"></div>
+    <div style="margin: 1em 0;">
+        <b>Click on the map to add a new camera location.</b>
+    </div>
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script>
+        var map = L.map('map').setView([32.7767, -96.7970], 11); // Dallas center
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Fetch and display all camera locations
+        function loadLocations() {
+            fetch('/api/locations/')
+                .then(response => response.json())
+                .then(data => {
+                    data.locations.forEach(loc => {
+                        L.marker([loc.latitude, loc.longitude])
+                            .addTo(map)
+                            .bindPopup(loc.description || 'No description');
+                    });
+                });
+        }
+        loadLocations();
+
+        // Add marker on map click and send to backend
+        map.on('click', function(e) {
+            var lat = e.latlng.lat;
+            var lng = e.latlng.lng;
+            var description = prompt('Enter a description for this camera location (optional):');
+            if (lat && lng) {
+                fetch('/api/add/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({latitude: lat, longitude: lng, description: description})
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.pending_moderation) {
+                        alert('Location submitted! It will appear on the map once approved by a moderator.');
+                    } else if (!data.success) {
+                        alert('Error: ' + data.error);
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>
